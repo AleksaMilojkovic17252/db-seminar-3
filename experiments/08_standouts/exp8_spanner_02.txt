@@ -1,0 +1,397 @@
+[Kid  item_id  product_id  quantity 
+1   1        4623        3         
+1   2        952         1         
+2   1        3657        5         
+2   2        610         1         
+2   3        1653        1         
+3   1        1358        4         
+3   2        4846        4         
+4   1        3803        5         
+4   2        1832        1         
+4   3        939         5         
+5   1        2696        2         
+5   2        1648        5         
+5   3        2015        5         
+6   1        3911        1         
+6   2        177         1         
+6   3        2751        4         
+7   1        3530        5         
+7   2        3870        3         
+8   1        4395        4         
+8   2        3162        4         
+
+
+Query stats: 
+{
+  "bytes_returned": "461",
+  "cpu_time": "0.36 msecs",
+  "data_bytes_read": "23476",
+  "deleted_rows_scanned": "0",
+  "elapsed_time": "0.39 msecs",
+  "filesystem_delay_seconds": "0 msecs",
+  "is_graph_query": "false",
+  "locking_delay": "0 msecs",
+  "memory_peak_usage_bytes": "456",
+  "memory_usage_percentage": "0.000",
+  "optimizer_statistics_package": "auto_20260727_17_42_10UTC",
+  "optimizer_version": "8",
+  "query_plan_cached": "true",
+  "query_text": "SELECT o.id, oi.item_id, oi.product_id, oi.quantity FROM orders o JOIN order_items oi ON oi.id = o.id LIMIT 20",
+  "remote_server_calls": "0/0",
+  "rows_returned": "20",
+  "rows_scanned": "20",
+  "runtime_cached": "true",
+  "server_queue_delay": "0 msecs",
+  "statistics_load_time": "0",
+  "time_to_first_row": "0.3 msecs",
+  "total_memory_peak_usage_byte": "456"
+}
+
+Query plan: 
+{
+  "planNodes":  [
+    {
+      "kind":  "RELATIONAL",
+      "displayName":  "Limit",
+      "childLinks":  [
+        {
+          "childIndex":  1
+        },
+        {
+          "childIndex":  16,
+          "type":  "Limit"
+        }
+      ],
+      "metadata":  {
+        "call_type":  "Global",
+        "execution_method":  "Row"
+      },
+      "executionStats":  {
+        "cpu_time":  {
+          "total":  "0.14",
+          "unit":  "msecs"
+        },
+        "execution_summary":  {
+          "execution_end_timestamp":  "1785317314.422431",
+          "execution_start_timestamp":  "1785317314.422264",
+          "num_executions":  "1"
+        },
+        "latency":  {
+          "total":  "0.14",
+          "unit":  "msecs"
+        },
+        "rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        }
+      }
+    },
+    {
+      "index":  1,
+      "kind":  "RELATIONAL",
+      "displayName":  "Distributed Union",
+      "childLinks":  [
+        {
+          "childIndex":  2
+        },
+        {
+          "childIndex":  15,
+          "type":  "Split Range"
+        }
+      ],
+      "metadata":  {
+        "distribution_table":  "order_items",
+        "execution_method":  "Row",
+        "split_ranges_aligned":  "false",
+        "subquery_cluster_node":  "2"
+      },
+      "executionStats":  {
+        "cpu_time":  {
+          "total":  "0.14",
+          "unit":  "msecs"
+        },
+        "execution_summary":  {
+          "num_executions":  "1"
+        },
+        "latency":  {
+          "total":  "0.14",
+          "unit":  "msecs"
+        },
+        "remote_calls":  {
+          "total":  "0",
+          "unit":  "calls"
+        },
+        "rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        }
+      }
+    },
+    {
+      "index":  2,
+      "kind":  "RELATIONAL",
+      "displayName":  "Serialize Result",
+      "childLinks":  [
+        {
+          "childIndex":  3
+        },
+        {
+          "childIndex":  11
+        },
+        {
+          "childIndex":  12
+        },
+        {
+          "childIndex":  13
+        },
+        {
+          "childIndex":  14
+        }
+      ],
+      "metadata":  {
+        "execution_method":  "Row"
+      },
+      "executionStats":  {
+        "cpu_time":  {
+          "total":  "0.12",
+          "unit":  "msecs"
+        },
+        "execution_summary":  {
+          "execution_end_timestamp":  "1785317314.422433",
+          "execution_start_timestamp":  "1785317314.422288",
+          "num_executions":  "1"
+        },
+        "latency":  {
+          "total":  "0.13",
+          "unit":  "msecs"
+        },
+        "rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        }
+      }
+    },
+    {
+      "index":  3,
+      "kind":  "RELATIONAL",
+      "displayName":  "Limit",
+      "childLinks":  [
+        {
+          "childIndex":  4
+        },
+        {
+          "childIndex":  10,
+          "type":  "Limit"
+        }
+      ],
+      "metadata":  {
+        "call_type":  "Local",
+        "execution_method":  "Row"
+      },
+      "executionStats":  {
+        "cpu_time":  {
+          "total":  "0.12",
+          "unit":  "msecs"
+        },
+        "execution_summary":  {
+          "num_executions":  "1"
+        },
+        "latency":  {
+          "total":  "0.12",
+          "unit":  "msecs"
+        },
+        "rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        }
+      }
+    },
+    {
+      "index":  4,
+      "kind":  "RELATIONAL",
+      "displayName":  "Distributed Union",
+      "childLinks":  [
+        {
+          "childIndex":  5
+        }
+      ],
+      "metadata":  {
+        "call_type":  "Local",
+        "execution_method":  "Row",
+        "subquery_cluster_node":  "5"
+      },
+      "executionStats":  {
+        "cpu_time":  {
+          "total":  "0.11",
+          "unit":  "msecs"
+        },
+        "execution_summary":  {
+          "num_executions":  "1"
+        },
+        "latency":  {
+          "total":  "0.12",
+          "unit":  "msecs"
+        },
+        "remote_calls":  {
+          "total":  "0",
+          "unit":  "calls"
+        },
+        "rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        }
+      }
+    },
+    {
+      "index":  5,
+      "kind":  "RELATIONAL",
+      "displayName":  "Scan",
+      "childLinks":  [
+        {
+          "childIndex":  6,
+          "variable":  "id_1"
+        },
+        {
+          "childIndex":  7,
+          "variable":  "item_id"
+        },
+        {
+          "childIndex":  8,
+          "variable":  "product_id"
+        },
+        {
+          "childIndex":  9,
+          "variable":  "quantity"
+        }
+      ],
+      "metadata":  {
+        "Full scan":  "true",
+        "execution_method":  "Row",
+        "scan_method":  "Row",
+        "scan_target":  "order_items",
+        "scan_type":  "TableScan"
+      },
+      "executionStats":  {
+        "cpu_time":  {
+          "total":  "0.11",
+          "unit":  "msecs"
+        },
+        "deleted_rows":  {
+          "total":  "0",
+          "unit":  "rows"
+        },
+        "execution_summary":  {
+          "num_executions":  "1"
+        },
+        "filesystem_delay_seconds":  {
+          "total":  "0",
+          "unit":  "msecs"
+        },
+        "filtered_rows":  {
+          "total":  "0",
+          "unit":  "rows"
+        },
+        "latency":  {
+          "total":  "0.11",
+          "unit":  "msecs"
+        },
+        "rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        },
+        "scanned_rows":  {
+          "total":  "20",
+          "unit":  "rows"
+        }
+      }
+    },
+    {
+      "index":  6,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "id"
+      }
+    },
+    {
+      "index":  7,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "item_id"
+      }
+    },
+    {
+      "index":  8,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "product_id"
+      }
+    },
+    {
+      "index":  9,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "quantity"
+      }
+    },
+    {
+      "index":  10,
+      "kind":  "SCALAR",
+      "displayName":  "Constant",
+      "shortRepresentation":  {
+        "description":  "20"
+      }
+    },
+    {
+      "index":  11,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "$id_1"
+      }
+    },
+    {
+      "index":  12,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "$item_id"
+      }
+    },
+    {
+      "index":  13,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "$product_id"
+      }
+    },
+    {
+      "index":  14,
+      "kind":  "SCALAR",
+      "displayName":  "Reference",
+      "shortRepresentation":  {
+        "description":  "$quantity"
+      }
+    },
+    {
+      "index":  15,
+      "kind":  "SCALAR",
+      "displayName":  "Constant",
+      "shortRepresentation":  {
+        "description":  "true"
+      }
+    },
+    {
+      "index":  16,
+      "kind":  "SCALAR",
+      "displayName":  "Constant",
+      "shortRepresentation":  {
+        "description":  "20"
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+C3 — CockroachDB, default isolation (Serializable), no explicit locking
+
+Reset: doctors on_call reset to {1: true, 2: true}, rest false. count=2.
+Isolation confirmed: SHOW transaction_isolation; -> serializable
+
+-- Session A (node localhost:26257) --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true;   -- 2
+> UPDATE doctors SET on_call = false WHERE id = 1;      -- UPDATE 1, succeeds
+> COMMIT;
+ERROR: restart transaction: TransactionRetryWithProtoRefreshError:
+  TransactionRetryError: retry txn (RETRY_SERIALIZABLE): "sql txn"
+  meta={id=2689c301 key=/Table/118/1/1/0 iso=Serializable pri=0.03807368
+  epo=0 ts=1785252813.666563175,2 min=1785252776.225323564,0 seq=2}
+  lock=true stat=PENDING rts=1785252776.225323564,0
+  gul=1785252776.725323564,0
+  obs={n1@1785252776.225323564,0 n3@1785252804.604030330,0}
+SQLSTATE: 40001
+
+-- Session B (same node, localhost:26257) --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true;   -- 2
+> UPDATE doctors SET on_call = false WHERE id = 2;      -- UPDATE 1, succeeds
+> COMMIT;                                                -- succeeds cleanly
+
+-- Final check --
+> SELECT id, on_call FROM doctors WHERE id IN (1,2);
+  id=1: on_call=true   (A's update never committed)
+  id=2: on_call=false  (B's update committed)
+> SELECT count(*) FROM doctors WHERE on_call = true;
+1
+
+Result: NO SKEW. Failed at: Session A's COMMIT (step 7 in the runbook's
+interleaving table) — both UPDATEs succeeded individually (unlike TiDB's
+pessimistic model, CockroachDB never blocks the write itself), but the
+conflict is detected as a serialization failure at commit time
+(SQLSTATE 40001, RETRY_SERIALIZABLE), and A's entire transaction is
+rejected. B's later commit proceeds cleanly since A never actually wrote
+its change durably.
+
+Contrast with TiDB/C1: same abstract conflict (two txns each remove one
+of the two on-call doctors, both individually valid reads becoming jointly
+invalid), but the concurrency-control model determines who catches it and
+when. TiDB's default (Snapshot Isolation, pessimistic locking on same-row
+writes only) does not catch this at all, since the two writes touch
+different rows. CockroachDB's default (Serializable, optimistic validation
+against the full transaction's read/write set at commit) catches it
+reliably, rejecting whichever transaction's commit loses the race, with
+the client responsible for retrying.

@@ -1,0 +1,59 @@
+-- Terminal A --
+$ mariadb -h 127.0.0.1 -P 4000 -u root
+> USE seminar;
+> SELECT @@transaction_isolation;      -- REPEATABLE-READ (TiDB default)
+> SELECT @@tidb_txn_mode, @@autocommit;
++-----------------+--------------+
+| @@tidb_txn_mode | @@autocommit |
++-----------------+--------------+
+| pessimistic     |            1 |
++-----------------+--------------+
+
+> BEGIN;
+> UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+> UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+-- transaction left open --
+
+-- Terminal B (observer) --
+$ mariadb -h 127.0.0.1 -P 4000 -u root
+> USE seminar;
+> SELECT * FROM information_schema.cluster_tidb_trx;
+
++-----------------+--------------------+----------------------------+---------------------+------------------+------------+---------+
+| INSTANCE        | ID                 | START_TIME                 | STATE | MEM_BUFFER_KEYS | MEM_BUFFER_BYTES | SESSION_ID | DB      |
++-----------------+--------------------+----------------------------+-------+-----------------+-------------------+------------+---------+
+| 127.0.0.1:10080 | 467992197271650305 | 2026-07-28 16:22:35.266000 | Idle  |               2 |                 0 | 1828716554 | seminar |
++-----------------+--------------------+----------------------------+-------+-----------------+-------------------+------------+---------+
+
+(gotcha: filtering WHERE state = 'Running' returns nothing — an open transaction
+sitting idle between statements reports STATE = 'Idle', not 'Running'; 'Running'
+only applies while a statement is actively executing. MEM_BUFFER_KEYS = 2 is the
+real signal here: TiDB's pessimistic-lock buffer already holds both keys touched
+by the two UPDATEs, before COMMIT.)
+
+-- Terminal B (contending transaction) --
+> BEGIN;
+> UPDATE accounts SET balance = balance - 50 WHERE id = 1;
+-- HANGS: blocked by Terminal A's still-open transaction on the same row --
+
+-- Terminal C (observer, while B is blocked) --
+$ mariadb -h 127.0.0.1 -P 4000 -u root
+> USE seminar;
+> SELECT * FROM information_schema.data_lock_waits;
+
++----------------------------------------+-------------------------------------------------------------------+---------------------+-------------------------+
+| KEY                                    | KEY_INFO                                                           | TRX_ID               | CURRENT_HOLDING_TRX_ID  |
++----------------------------------------+-------------------------------------------------------------------+-----------------------+-------------------------+
+| 7480000000000000725F728000000000000001 | {"db_name":"seminar","table_name":"accounts","handle_value":"1"}  | 467992260159995905   | 467992197271650305     |
++----------------------------------------+-------------------------------------------------------------------+-----------------------+-------------------------+
+
+Interpretation: TRX_ID 467992260159995905 (Terminal B) is blocked waiting on
+CURRENT_HOLDING_TRX_ID 467992197271650305 — the exact ID of Terminal A's
+transaction seen in cluster_tidb_trx above — over row id=1 of accounts
+(handle_value "1"). This is TiDB's Percolator-style pessimistic locking:
+UPDATE acquires the lock immediately at execution time and a second
+transaction touching the same row blocks outright, rather than proceeding
+optimistically and being resolved at commit (contrast with CockroachDB's
+write-intent model, where both transactions can start freely and conflicts
+are detected later). REPEATABLE-READ isolation confirmed in effect;
+tidb_txn_mode = pessimistic confirmed as the active locking strategy.

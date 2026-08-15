@@ -1,0 +1,65 @@
+|info                                                                                                                  |
+|----------------------------------------------------------------------------------------------------------------------|
+|distribution: full                                                                                                    |
+|vectorized: true                                                                                                      |
+|                                                                                                                      |
+|• sort                                                                                                                |
+|│ columns: (region, total_value)                                                                                      |
+|│ estimated row count: 3                                                                                              |
+|│ order: +region                                                                                                      |
+|│                                                                                                                     |
+|└── • group (hash)                                                                                                    |
+|    │ columns: (region, sum)                                                                                          |
+|    │ estimated row count: 3                                                                                          |
+|    │ aggregate 0: sum(column36)                                                                                      |
+|    │ group by: region                                                                                                |
+|    │                                                                                                                 |
+|    └── • render                                                                                                      |
+|        │ columns: (column36, region)                                                                                 |
+|        │ render column36: quantity * unit_price                                                                      |
+|        │ render region: region                                                                                       |
+|        │                                                                                                             |
+|        └── • lookup join (inner)                                                                                     |
+|            │ columns: (order_id, product_id, quantity, unit_price, id, category, rating, id, customer_id, id, region)|
+|            │ estimated row count: 3,765                                                                              |
+|            │ table: customers@customers_pkey                                                                         |
+|            │ equality: (customer_id) = (id)                                                                          |
+|            │ equality cols are key                                                                                   |
+|            │ parallel                                                                                                |
+|            │                                                                                                         |
+|            └── • lookup join (inner)                                                                                 |
+|                │ columns: (order_id, product_id, quantity, unit_price, id, category, rating, id, customer_id)        |
+|                │ estimated row count: 3,812                                                                          |
+|                │ table: orders@orders_pkey                                                                           |
+|                │ equality: (order_id) = (id)                                                                         |
+|                │ equality cols are key                                                                               |
+|                │ parallel                                                                                            |
+|                │                                                                                                     |
+|                └── • hash join (inner)                                                                               |
+|                    │ columns: (order_id, product_id, quantity, unit_price, id, category, rating)                     |
+|                    │ estimated row count: 3,805                                                                      |
+|                    │ equality: (product_id) = (id)                                                                   |
+|                    │ right cols are key                                                                              |
+|                    │                                                                                                 |
+|                    ├── • scan                                                                                        |
+|                    │     columns: (order_id, product_id, quantity, unit_price)                                       |
+|                    │     estimated row count: 120,000 (100% of the table; stats collected 46 minutes ago)            |
+|                    │     table: order_items@order_items_pkey                                                         |
+|                    │     spans: FULL SCAN                                                                            |
+|                    │                                                                                                 |
+|                    └── • filter                                                                                      |
+|                        │ columns: (id, category, rating)                                                             |
+|                        │ estimated row count: 159                                                                    |
+|                        │ filter: (category = 'Electronics') AND (rating >= 4)                                        |
+|                        │                                                                                             |
+|                        └── • scan                                                                                    |
+|                              columns: (id, category, rating)                                                         |
+|                              estimated row count: 5,000 (100% of the table; stats collected 46 minutes ago)          |
+|                              table: products@products_pkey                                                           |
+|                              spans: FULL SCAN                                                                        |
+|                                                                                                                      |
+|index recommendations: 2                                                                                              |
+|1. type: index creation                                                                                               |
+|   SQL command: CREATE INDEX ON seminar.public.order_items (product_id) STORING (order_id, quantity, unit_price);     |
+|2. type: index creation                                                                                               |
+|   SQL command: CREATE INDEX ON seminar.public.products (category, rating);                                           |

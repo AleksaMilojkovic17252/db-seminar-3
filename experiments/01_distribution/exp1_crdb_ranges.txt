@@ -1,0 +1,11 @@
+start_key	end_key	range_id	replicas	replica_localities	voting_replicas	non_voting_replicas	learner_replicas	split_enforced_until
+<before:/Table/106>	<after:/Max>	83	{1,2,3}	"{""region=eu-west,zone=a"",""region=us-east,zone=b"",""region=us-west,zone=c""}"	{1,2,3}	{}	{}	NULL
+
+-- NOTE: an earlier `SELECT ... FROM crdb_internal.ranges LIMIT 20` (no WHERE
+-- clause) was run here and dropped from this file. With no filter, ranges
+-- are returned in key order starting from range_id 1, and system/meta/
+-- early-table ranges (/Meta2, /System/..., /Table/0 through /Table/18)
+-- already fill all 20 rows before the key space reaches /Table/106 (orders)
+-- -- so that output said nothing about `orders`. The SHOW RANGES output
+-- above is the actual answer and is corroborated by the filtered query in
+-- exp1_crdb_ranges_orders.txt.

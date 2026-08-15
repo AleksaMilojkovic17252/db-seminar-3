@@ -1,0 +1,71 @@
+C2 — TiDB, default isolation (Repeatable Read / Snapshot Isolation) + SELECT ... FOR UPDATE
+
+=== C2 (naive): FOR UPDATE with an unconditional write ===
+
+Reset: doctors on_call reset to {1: true, 2: true}, rest false. count=2.
+
+-- Session A --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true FOR UPDATE;   -- 2
+> UPDATE doctors SET on_call = false WHERE id = 1;
+> COMMIT;
+
+-- Session B (started right after A's SELECT, before A's COMMIT) --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true FOR UPDATE;
+  -- BLOCKS for 16.154s, waiting on A's still-open transaction
+  -- unblocks after A's COMMIT, returns count = 1 (fresh, post-A value —
+  -- not the stale 2 that plain SI would have shown)
+> UPDATE doctors SET on_call = false WHERE id = 2;     -- unconditional, runs anyway
+> COMMIT;
+
+-- Final check --
+> SELECT count(*) FROM doctors WHERE on_call = true;
+0
+
+Result: WRITE SKEW STILL OCCURS. FOR UPDATE correctly serialized the reads
+(B was forced to wait, and saw A's committed value rather than a stale
+snapshot) — but the anomaly still happened, because nothing in B's
+transaction *used* that information. The UPDATE ran unconditionally
+regardless of the count B had just read.
+
+This contradicts the runbook's simplified expectation for C2
+("Blocks/aborts -> no skew"). The corrected finding: explicit locking
+(FOR UPDATE) prevents *stale reads under concurrency*, not write skew
+itself. It only supplies the application with the information needed to
+prevent the anomaly — actually preventing it requires the application to
+branch on that information. This is the more defensible, more interesting
+result, and closely mirrors a real-world footgun: teams add FOR UPDATE and
+assume they're safe from write skew, without adding the corresponding
+invariant check.
+
+=== C2b (corrected): FOR UPDATE with an explicit invariant check ===
+
+Reset: doctors on_call reset to {1: true, 2: true}, rest false. count=2.
+
+-- Session A --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true FOR UPDATE;   -- 2
+> UPDATE doctors SET on_call = false WHERE id = 1;
+> COMMIT;
+
+-- Session B (started right after A's SELECT, before A's COMMIT) --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true FOR UPDATE;
+  -- BLOCKS for 21.078s, unblocks after A's COMMIT, returns count = 1
+  -- Application-level check: count (1) < 2, so removing doctor 2 too
+  -- would violate the "at least one doctor on call" invariant -> abort
+  -- instead of writing.
+> ROLLBACK;
+
+-- Final check --
+> SELECT id, on_call FROM doctors WHERE id IN (1,2);
+  id=1: on_call=0 (from A's committed update)
+  id=2: on_call=1 (B rolled back before writing)
+> SELECT count(*) FROM doctors WHERE on_call = true;
+1
+
+Result: NO SKEW. Invariant preserved. This is what actually closes the
+anomaly: FOR UPDATE (to serialize visibility) *combined with* an explicit
+application-level check-then-abort on the locked read. FOR UPDATE alone,
+as C2 shows, is not sufficient by itself.

@@ -1,0 +1,17 @@
+Phase 2 checkpoint — seed row counts, verified identical across all three engines.
+
+| Table       | TiDB   | CockroachDB | Spanner | Expected |
+|-------------|--------|-------------|---------|----------|
+| accounts    | 50000  | 50000       | 50000   | 50000    |
+| customers   | 20000  | 20000       | 20000   | 20000    |
+| products    | 5000   | 5000        | 5000    | 5000     |
+| orders      | 50000  | 50000       | 50000   | 50000    |
+| order_items | 120000 | 120000      | 120000  | 120000   |
+| doctors     | 10     | 10          | 10      | 10       |
+
+doctors.on_call verified on all three: ids 1 and 2 = true, ids 3-10 = false.
+
+Seed data generated deterministically (fixed RNG seed) by schema/generate_seed.py,
+loaded via schema/seed_mysql.sql (TiDB), schema/seed_pg.sql (CockroachDB), and
+schema/seed_spanner.sql + setup/load_spanner_seed.sh (Spanner Omni, batched
+~1000 rows/transaction via the CLI's execute-sql).

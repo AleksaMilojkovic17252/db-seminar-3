@@ -1,0 +1,43 @@
+C4 — CockroachDB, forced to Read Committed
+
+Reset: doctors on_call reset to {1: true, 2: true}, rest false. count=2.
+Confirmed Read Committed available on this build with no cluster setting
+needed: BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED; SHOW
+transaction_isolation; -> read committed (no
+sql.txn.read_committed_isolation.enabled toggle required, unlike the
+runbook's T-14 fallback).
+
+-- Session A --
+> BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
+> SHOW transaction_isolation;                          -- read committed
+> SELECT count(*) FROM doctors WHERE on_call = true;    -- 2
+> UPDATE doctors SET on_call = false WHERE id = 1;      -- UPDATE 1
+> COMMIT;                                                -- succeeds, no error
+
+-- Session B (opened and read while A's transaction was still in flight) --
+> BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
+> SELECT count(*) FROM doctors WHERE on_call = true;    -- 2 (A's write not
+                                                          --   yet committed
+                                                          --   at read time)
+> UPDATE doctors SET on_call = false WHERE id = 2;      -- UPDATE 1
+> COMMIT;                                                -- succeeds, no error
+
+-- Final check --
+> SELECT id, on_call FROM doctors WHERE id IN (1,2);
+  id=1: on_call=false
+  id=2: on_call=false
+(implied count(*) WHERE on_call=true = 0)
+
+Result: WRITE SKEW. Both transactions committed cleanly — no SQLSTATE
+40001, no block, no rejection at any step. Final state has zero doctors
+on call, violating the invariant both transactions individually verified
+(each read count=2) before acting.
+
+This is the runbook's key addition (C4): the exact same engine
+(CockroachDB) that rejected the identical interleaving under its default
+Serializable isolation in C3 reproduces write skew once the isolation
+level is lowered to Read Committed. This isolates the real variable
+properly — it is the isolation level, not the vendor/engine, that
+determines whether this anomaly occurs. TiDB at its default (Snapshot
+Isolation, C1) and CockroachDB at Read Committed (C4) both allow the
+anomaly; CockroachDB at Serializable (C3) does not.

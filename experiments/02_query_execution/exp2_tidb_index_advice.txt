@@ -1,0 +1,8 @@
+*************************** 1. row ***************************
+          database: seminar
+             table: customers
+        index_name: idx_region
+     index_columns: region
+        index_size: 160000
+            reason: Column [region] appear in Equal or Range Predicate clause(s) in query: select `c` . `region` , sum ( `oi` . `quantity` * `oi` . `unit_price` ) as `total_value` from ( ( `seminar` . `orders` as `o` join `seminar` . `customers` as `c` on `o` . `customer_id` = `c` . `id` ) join `seminar` . `order_items` as `oi` on `oi` . `order_id` = `o` . `id` ) join `seminar` . `products` as `p` on `oi` . `product_id` = `p` . `id` where `p` . `category` = ? and `p` . `rating` >= ? group by `c` . `region` order by `c` . `region`
+top_impacted_query: [{"Query":"SELECT `c`.`region`,SUM(`oi`.`quantity` * `oi`.`unit_price`) AS `total_value` FROM ((`seminar`.`orders` AS `o` JOIN `seminar`.`customers` AS `c` ON `o`.`customer_id` = `c`.`id`) JOIN `seminar`.`order_items` AS `oi` ON `oi`.`order_id` = `o`.`id`) JOIN `seminar`.`products` AS `p` ON `oi`.`product_id` = `p`.`id` WHERE `p`.`category` = 'Electronics' AND `p`.`rating` \u003e= 4 GROUP BY `c`.`region` ORDER BY `c`.`region`","Improvement":0.0391}]

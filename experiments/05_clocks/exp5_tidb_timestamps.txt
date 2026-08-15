@@ -1,0 +1,23 @@
+TiDB — centralized TSO (PD)
+
+Gotcha (per the runbook itself, T-18): @@tidb_current_ts reads 0 outside
+an open transaction. Must be wrapped in BEGIN; ... COMMIT;.
+
+$ mariadb -h 127.0.0.1 -P 4000 -u root -D seminar -e "BEGIN; SELECT @@tidb_current_ts; COMMIT;"
+467993659939225602
+
+$ mariadb -h 127.0.0.1 -P 4000 -u root -D seminar -e "BEGIN; SELECT @@tidb_current_ts; COMMIT;"
+467993660437561345
+
+$ mariadb -h 127.0.0.1 -P 4000 -u root -D seminar -e "BEGIN; SELECT @@tidb_current_ts; COMMIT;"
+467993660765241346
+
+Monotonically increasing across all three calls. Unlike CockroachDB's HLC
+(each node computes its own timestamp locally, adjusted by observed peer
+timestamps), every one of these three values was issued by the single PD
+process acting as TiDB's Timestamp Oracle (TSO) — every transaction start
+in this cluster is a round-trip to that one process, a centralization
+CockroachDB's HLC design specifically avoids. This connects directly to
+Experiment 3: TiDB's higher median commit latency (6.38ms vs CockroachDB's
+3.78ms) is consistent with paying this extra round-trip on every
+transaction, on top of TiDB's pessimistic lock acquisition.

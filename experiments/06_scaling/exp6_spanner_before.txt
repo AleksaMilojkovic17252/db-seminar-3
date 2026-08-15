@@ -1,0 +1,32 @@
+# Experiment 6 — Spanner Omni BEFORE scale-out (3 root servers)
+# 2026-07-29T15:35:30Z
+
+## Servers
+NAME                                                    HOST                        PORT_BASE  ROOT  STATE 
+zones/local-a/servers/spanner-a-0.pod.spanner-ns:15000  spanner-a-0.pod.spanner-ns  15000      true  READY  
+zones/local-a/servers/spanner-a-1.pod.spanner-ns:15000  spanner-a-1.pod.spanner-ns  15000      true  READY  
+zones/local-a/servers/spanner-a-2.pod.spanner-ns:15000  spanner-a-2.pod.spanner-ns  15000      true  READY  
+
+## Pods
+NAME                          READY   STATUS      RESTARTS   AGE   IP           NODE            NOMINATED NODE   READINESS GATES
+spanner-a-0                   1/1     Running     0          51m   10.42.0.13   aleksa-laptop   <none>           <none>
+spanner-a-1                   1/1     Running     0          51m   10.42.0.18   aleksa-laptop   <none>           <none>
+spanner-a-2                   1/1     Running     0          51m   10.42.0.19   aleksa-laptop   <none>           <none>
+spanner-bootstrap-job-48wvz   0/1     Completed   0          62m   10.42.0.9    aleksa-laptop   <none>           <none>
+
+## Groups (SPANNER_SYS.SPLIT_STATS_MINUTE)
++-----------+-----------------+
+| group_uid | is_system_split |
++-----------+-----------------+
+|  55574529 | true            |
+|  51380225 | false           |
++-----------+-----------------+
+2 rows.
+
+## Leader of user-data group (g1_49 / 51380225)
+    generating_machine: "spanner-a-1"
+
+## Per-server disk footprint
+spanner-a-0: 10G	/spanner
+spanner-a-1: 10G	/spanner
+spanner-a-2: 10G	/spanner

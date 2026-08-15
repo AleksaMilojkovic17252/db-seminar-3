@@ -1,0 +1,46 @@
+C1 — TiDB, default isolation (Repeatable Read / Snapshot Isolation), no explicit locking
+
+Reset:
+  UPDATE doctors SET on_call = true WHERE id IN (1,2);
+  UPDATE doctors SET on_call = false WHERE id NOT IN (1,2);
+  SELECT count(*) FROM doctors WHERE on_call = true;  -- 2
+
+-- Session A --
+> SELECT @@transaction_isolation;
+REPEATABLE-READ
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true;   -- 2
+
+-- Session B --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true;   -- 2
+
+-- Session A --
+> UPDATE doctors SET on_call = false WHERE id = 1;     -- succeeds immediately
+
+-- Session B --
+> UPDATE doctors SET on_call = false WHERE id = 2;     -- succeeds immediately, DID NOT BLOCK
+
+-- Session A --
+> COMMIT;                                              -- succeeds
+
+-- Session B --
+> COMMIT;                                              -- succeeds
+
+-- Final check (Session A) --
+> SELECT count(*) FROM doctors WHERE on_call = true;
+0
+
+Result: WRITE SKEW. Both transactions committed. Failed at: neither —
+no rejection at any step. Final on-call count = 0, violating the
+"at least one doctor on call" invariant that both transactions individually
+verified (each read count=2) before acting.
+
+Why: id=1 and id=2 are different rows, so TiDB's pessimistic locking (which
+blocked immediately on same-row contention in Experiment 3) has nothing to
+contend over here — each UPDATE only locks the row it touches. Snapshot
+Isolation validates each transaction against the rows *it* wrote, not
+against the logical invariant (count of on-call doctors) that spans rows
+neither transaction wrote to. This is the textbook write-skew anomaly: SI
+prevents write-write conflicts, not this kind of read-then-disjoint-write
+conflict.

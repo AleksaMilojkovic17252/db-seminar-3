@@ -1,0 +1,26 @@
+CockroachDB — Hybrid Logical Clock (HLC)
+
+Gotcha: the runbook's `crdb_internal.cluster_logical_timestamp()` does not
+exist in v26.2.0 (SQLSTATE 42883, unknown function). The correct call is
+the plain top-level builtin `cluster_logical_timestamp()`, no
+`crdb_internal.` prefix.
+
+$ cockroachdb-26 sql --insecure --host=localhost:26257 -e "SELECT cluster_logical_timestamp();"
+1785253941830227394.0000000000
+
+$ cockroachdb-26 sql --insecure --host=localhost:26257 -e "SELECT cluster_logical_timestamp();"
+1785253944273571133.0000000000
+
+$ cockroachdb-26 sql --insecure --host=localhost:26257 -e "SELECT cluster_logical_timestamp();"
+1785253945958757268.0000000000
+
+Monotonically increasing across all three calls, confirming the HLC
+advances with each request even though these three calls came from three
+separate client connections (no shared transaction state). Screenshot:
+results/screenshots/exp5_crdb_clockoffset.png (DB Console -> Metrics ->
+Dashboard: Runtime -> Clock Offset). All 3 nodes' offsets fluctuate in the
+0-50us range over the observed hour, far under the default --max-offset
+of 500ms (500,000us) — expected and not very informative on its own,
+since all three nodes are local processes on one laptop sharing the same
+system clock; this does not exercise real network clock skew the way a
+multi-machine deployment would.

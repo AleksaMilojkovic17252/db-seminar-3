@@ -1,0 +1,22 @@
+$ cockroachdb-26 sql --insecure --host=localhost:26257
+> BEGIN;
+> UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+> UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+-- transaction left open --
+
+-- from a second session --
+> SET allow_unsafe_internals = true;
+> SELECT * FROM crdb_internal.cluster_locks;
+
+  range_id | table_id | database_name | schema_name | table_name | index_name |  lock_key  | lock_key_pretty  |                txn_id                |             ts             | lock_strength |  durability  | granted | contended |    duration     | isolation_level
+-----------+----------+---------------+-------------+------------+------------+------------+------------------+--------------------------------------+----------------------------+---------------+--------------+---------+-----------+-----------------+------------------
+        83 |      106 | seminar       | public      | accounts   |            | \xf2898988 | /Table/106/1/1/0 | 7ef3adc6-dc15-408c-af39-98a5e28374f5 | 2026-07-28 14:17:35.964111 | Exclusive     | Unreplicated |    t    |     f     | 00:00:46.853101 | SERIALIZABLE
+        83 |      106 | seminar       | public      | accounts   |            | \xf2898a88 | /Table/106/1/2/0 | 7ef3adc6-dc15-408c-af39-98a5e28374f5 | 2026-07-28 14:17:35.964111 | Exclusive     | Unreplicated |    t    |     f     | 00:00:40.521609 | SERIALIZABLE
+(2 rows)
+
+Interpretation: both UPDATEs within the open transaction hold Exclusive,
+Unreplicated write intents (CockroachDB's write-intent model) on the two
+target rows, keyed as /Table/106/1/<id>/0. Locks are visible to any session
+via crdb_internal.ranges/cluster_locks before commit, and disappear once
+COMMIT resolves the intents. isolation_level column confirms SERIALIZABLE
+is in effect for this session (CockroachDB's default, not lowered).

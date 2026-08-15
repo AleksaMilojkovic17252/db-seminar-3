@@ -1,0 +1,40 @@
+Spanner Omni — interleaved locality demo (order_items INTERLEAVE IN PARENT orders)
+
+Schema: schema/schema_googlesql.sql declares order_items as a physical
+child of orders (INTERLEAVE IN PARENT orders ON DELETE CASCADE), so each
+order's line items are stored co-located with the parent order row.
+
+=== Query A: join on the interleave key only (id) ===
+
+$ spanner databases execute-sql seminar --query-mode PROFILE \
+    --sql="SELECT o.id, oi.item_id, oi.product_id, oi.quantity FROM orders o JOIN order_items oi ON oi.id = o.id LIMIT 20"
+
+Result: the optimizer ELIMINATED THE JOIN ENTIRELY. The plan never scans
+`orders` — only a single TableScan on `order_items` inside one
+Distributed Union (distribution_table: order_items), because interleaving
+guarantees order_items.id IS the parent order's id, so o.id can be read
+directly off the child row. remote_server_calls: 0/0, rows_scanned: 20.
+This is stronger evidence of the optimizer understanding the interleaving
+relationship than a "the join stayed co-located" result would have been —
+it didn't just avoid a network hop, it proved the join was redundant.
+
+=== Query B: join requiring a column that only exists on orders (forces a real join) ===
+
+$ spanner databases execute-sql seminar --query-mode PROFILE \
+    --sql="SELECT o.id, o.total, oi.item_id, oi.quantity FROM orders o JOIN order_items oi ON oi.id = o.id LIMIT 20"
+
+Query stats:
+  cpu_time: 6.82 msecs, elapsed_time: 8.35 msecs
+  data_bytes_read: 112514, rows_scanned: 40, rows_returned: 20
+  remote_server_calls: 0/0
+
+Plan shape: Distributed Cross Apply, driven from order_items
+(distribution_table: order_items — the CHILD drives the join). order_items
+is scanned first (batched), then for each batch a Cross Apply performs a
+Filter Scan seek directly into orders using the equality
+($id = $batched_id_1'). Every Distributed Union / Distributed Cross Apply
+node in the plan reports remote_calls: total: 0. A genuine cross-table
+join (not eliminated, since o.total is needed), still fully co-located.
+
+See exp8_spanner_flat_plan.txt for the contrast: the same logical join
+against a non-interleaved twin table.

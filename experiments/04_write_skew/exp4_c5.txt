@@ -1,0 +1,53 @@
+C5 — Spanner Omni, read-write transaction (isolation not lowerable)
+
+Reset: doctors on_call reset to {1: true, 2: true}, rest false. count=2
+(via `spanner databases execute-sql seminar --sql=...`, one statement per
+invocation).
+
+Tooling note: Spanner Omni's `databases execute-sql` CLI is single-statement
+per invocation with no session state (documented gotcha from Experiment 2),
+so it cannot hold a transaction open across separate commands. Found and
+used the interactive shell instead: `spanner sql --database=seminar`
+(`\h` inside it confirmed no explicit transaction meta-commands, but plain
+`BEGIN;`/`COMMIT;` SQL statements work directly — the prompt changes to
+`spanner-cli(rw txn)>` once a read-write transaction is open).
+
+-- Session A --
+> BEGIN;                                                -- prompt -> (rw txn)
+> SELECT count(*) FROM doctors WHERE on_call = true;    -- 2
+
+-- Session B (opened while A's transaction was still open) --
+> BEGIN;
+> SELECT count(*) FROM doctors WHERE on_call = true;    -- 2
+
+-- Session A --
+> UPDATE doctors SET on_call = false WHERE id = 1;      -- succeeds immediately
+
+-- Session B --
+> UPDATE doctors SET on_call = false WHERE id = 2;      -- succeeds immediately,
+                                                          -- did not block
+                                                          -- (same as CockroachDB's
+                                                          -- optimistic model, unlike
+                                                          -- TiDB's pessimistic block)
+
+-- Session A --
+> COMMIT;                                                -- succeeds
+
+-- Session B --
+> COMMIT;
+ERROR: spanner: code = "Aborted", desc = "Transaction was aborted.",
+  requestID = "1.14b1ac0df75e80c8.1.1.22.1"
+
+-- Final check --
+> SELECT id, on_call FROM doctors WHERE id IN (1,2);
+  id=1: on_call=false  (A's commit succeeded)
+  id=2: on_call=true   (B's commit aborted)
+
+Result: NO SKEW. Failed at: Session B's COMMIT — same shape as
+CockroachDB/C3 (both writes succeed individually; the conflict surfaces as
+an abort at commit time, not a block at write time), just Spanner's own
+"Aborted" error rather than CockroachDB's SQLSTATE 40001. Confirms the
+runbook's expectation: Spanner offers no lower isolation tier for
+read-write transactions, so this condition has no C5b/C5-relaxed variant
+the way TiDB (C1/C2) and CockroachDB (C3/C4) do — that non-configurability
+is itself a design position, not a gap in this experiment.

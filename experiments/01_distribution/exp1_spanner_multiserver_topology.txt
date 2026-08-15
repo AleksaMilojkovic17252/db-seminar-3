@@ -1,0 +1,28 @@
+# Experiment 1 — Spanner Omni multi-server topology (RF=3-equivalent)
+# Command: spanner deployment zones describe local-a
+# Run: 2026-07-29, against helm release spanner-omni / namespace spanner-ns
+
+location: locations/local
+name: zones/local-a
+replicaType: READ_WRITE
+rootServers:
+- host: spanner-a-0.pod.spanner-ns
+  name: zones/local-a/servers/spanner-a-0.pod.spanner-ns:15000
+  portBase: 15000
+  root: true
+- host: spanner-a-1.pod.spanner-ns
+  name: zones/local-a/servers/spanner-a-1.pod.spanner-ns:15000
+  portBase: 15000
+  root: true
+- host: spanner-a-2.pod.spanner-ns
+  name: zones/local-a/servers/spanner-a-2.pod.spanner-ns:15000
+  portBase: 15000
+  root: true
+state: READY
+
+# Command: spanner deployment servers list --zone local-a
+
+NAME                                                    HOST                        PORT_BASE  ROOT  STATE 
+zones/local-a/servers/spanner-a-0.pod.spanner-ns:15000  spanner-a-0.pod.spanner-ns  15000      true  READY  
+zones/local-a/servers/spanner-a-1.pod.spanner-ns:15000  spanner-a-1.pod.spanner-ns  15000      true  READY  
+zones/local-a/servers/spanner-a-2.pod.spanner-ns:15000  spanner-a-2.pod.spanner-ns  15000      true  READY  

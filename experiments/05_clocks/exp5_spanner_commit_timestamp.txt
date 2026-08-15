@@ -1,0 +1,26 @@
+Spanner Omni — commit timestamp + commit-wait
+
+ledger.created_at is declared with OPTIONS (allow_commit_timestamp=true)
+in schema/schema_googlesql.sql specifically for this experiment. Writing
+PENDING_COMMIT_TIMESTAMP() into it lets Spanner assign the actual commit
+timestamp server-side, rather than the client supplying a wall-clock value.
+
+$ docker exec -i spanneromni /google/spanner/bin/spanner databases execute-sql seminar \
+    --sql="INSERT INTO ledger (id, from_acct, to_acct, amount, created_at) \
+    VALUES (9999999999, 1, 2, 0.01, PENDING_COMMIT_TIMESTAMP())"
+
+$ docker exec -i spanneromni /google/spanner/bin/spanner databases execute-sql seminar \
+    --sql="SELECT id, created_at FROM ledger WHERE id = 9999999999"
+
+id           created_at
+9999999999   2026-07-28T15:56:31.771422Z
+
+Interpretation: the placeholder PENDING_COMMIT_TIMESTAMP() was replaced by
+an actual timestamp assigned at commit time by Spanner itself, not
+supplied by the client. In production Spanner this timestamp is chosen
+using TrueTime and the transaction is held (commit-wait) until TrueTime's
+uncertainty interval has definitely passed, guaranteeing external
+consistency: any transaction that later observes the effects of this one
+is guaranteed to see a commit timestamp actually in the past relative to
+its own start. See NOTE.md for the critical caveat about what this
+demonstrates on Omni specifically.

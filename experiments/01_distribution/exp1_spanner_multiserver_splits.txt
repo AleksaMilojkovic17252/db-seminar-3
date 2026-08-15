@@ -1,0 +1,42 @@
+# Experiment 1 — Spanner Omni split/placement introspection (multi-server, RF=3-equivalent)
+# All commands run against database seminar-multiserver, 2026-07-29
+
+## Split/group count and which tables share which group (SPANNER_SYS.SPLIT_STATS_MINUTE)
+# Command: spanner admin alpha sql seminar-multiserver "SELECT DISTINCT group_uid, is_system_split FROM SPANNER_SYS.SPLIT_STATS_MINUTE"
+
++-----------+-----------------+
+| group_uid | is_system_split |
++-----------+-----------------+
+|  55574529 | true            |
+|  51380225 | false           |
++-----------+-----------------+
+2 rows.
+
+# Command: spanner admin alpha sql seminar-multiserver "SELECT affected_tables FROM SPANNER_SYS.SPLIT_STATS_MINUTE WHERE group_uid=51380225 LIMIT 1"
+
++------------------------------------------------------------------------------+
+| affected_tables                                                              |
++------------------------------------------------------------------------------+
+| [accounts,IDX_order_items_product_id_5A921AEEC00B2C84,doctors,IDX_orders_cus |
+| tomer_id_DAA28D8F5ED828BB,orders,customers,ledger,IDX_ledger_to_acct_70BFB11 |
+| A1B25F60D,IDX_ledger_from_acct_339E04B16E84B3AB,order_items,products]        |
++------------------------------------------------------------------------------+
+1 row.
+
+## Which server currently generates/leads the one user-data group (g1_49 / group_uid 51380225)
+# Command: spanner admin alpha descriptor print seminar-multiserver 51380225  (run identically from spanner-a-0 AND spanner-a-2 to confirm consistency)
+
+--- queried from spanner-a-0 ---
+group {
+  group_uid: "g1_49"
+  replica: "z1_49"
+    generating_machine: "spanner-a-1"
+
+--- queried from spanner-a-2 (same answer confirms it's not just 'whichever server answered') ---
+    generating_machine: "spanner-a-1"
+
+## Per-server on-disk footprint (/spanner, data+logs volumes)
+# Command: kubectl exec <pod> -n spanner-ns -- du -sh /spanner
+spanner-a-0: 10G	/spanner
+spanner-a-1: 10G	/spanner
+spanner-a-2: 10G	/spanner

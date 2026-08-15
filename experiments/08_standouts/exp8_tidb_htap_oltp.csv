@@ -1,0 +1,5 @@
+engine,workload,concurrency,rep,ops_per_sec,p50,p95,p99,retries
+tidb,point_read,16,1,9432.10,1.531,3.232,4.245,0
+tidb,point_write,16,1,2539.95,5.908,8.502,11.630,0
+tidb,point_read,16,1,7024.85,2.030,4.476,5.957,0
+tidb,point_write,16,1,2460.65,6.124,9.043,11.994,0

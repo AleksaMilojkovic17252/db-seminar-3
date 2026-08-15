@@ -1,0 +1,3 @@
+|REGION_ID|START_KEY|END_KEY|LEADER_ID|LEADER_STORE_ID|PEERS        |SCATTERING|WRITTEN_BYTES|READ_BYTES|APPROXIMATE_SIZE(MB)|APPROXIMATE_KEYS|SCHEDULING_CONSTRAINTS|SCHEDULING_STATE|
+|---------|---------|-------|---------|---------------|-------------|----------|-------------|----------|--------------------|----------------|----------------------|----------------|
+|301      |t_122_   |t_124_ |304      |3              |302, 303, 304|0         |0            |0         |10                  |130,294         |                      |                |

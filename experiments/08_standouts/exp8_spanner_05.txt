@@ -1,0 +1,11 @@
+[Kcolumn_name         spanner_type                       
+ProductID           INT64                               
+Name                STRING(MAX)                         
+Description         STRING(MAX)                         
+ImageURL            STRING(MAX)                         
+PriceUSD            NUMERIC                             
+Category            STRING(MAX)                         
+ProductEmbedding    ARRAY<FLOAT64>(vector_length=>768)  
+Name_Tokens         TOKENLIST                           
+Description_Tokens  TOKENLIST                           
+

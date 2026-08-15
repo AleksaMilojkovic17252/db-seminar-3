@@ -1,0 +1,45 @@
+Spanner Omni — full-text search on the bundled sample retail database
+
+Database: retail-sample (bundled via `spanner databases create-sample-db
+retail --database-name=retail-sample` at Phase 1 setup), distinct from the
+seminar schema.
+
+Products table schema (information_schema.columns):
+  ProductID           INT64
+  Name                STRING(MAX)
+  Description         STRING(MAX)
+  ImageURL            STRING(MAX)
+  PriceUSD            NUMERIC
+  Category            STRING(MAX)
+  ProductEmbedding    ARRAY<FLOAT64>(vector_length=>768)
+  Name_Tokens         TOKENLIST
+  Description_Tokens  TOKENLIST
+
+Notable: ProductEmbedding is a 768-dim vector column alongside the
+TOKENLIST search columns — genuine multi-model support (relational +
+full-text + vector embeddings) in a single row/table, not just full-text.
+Only the full-text SEARCH() demo was run here; vector similarity search
+was not exercised (would need a query embedding, out of scope for this
+experiment) but its presence is itself worth noting for the paper.
+
+$ spanner databases execute-sql retail-sample \
+    --sql="SELECT ProductID, Name FROM Products WHERE SEARCH(Name_Tokens, 'phone') LIMIT 10"
+
+ProductID  Name
+197251     Lutz-Howard Phone
+201414     Smith-Allen Mobile Phone
+377370     Adkins, Cell Phone Plus 58
+407419     Farley, Cell Phone
+476417     Dixon, Mobile Phone Pro 37
+479201     Jones Cell Phone Max 83
+581741     Brock, Phone
+748564     Gonzales, Phone
+865179     Jones, Cell Phone Pro 43
+988662     Johnson Cell Phone Plus 28
+
+Result: SEARCH() over the TOKENLIST column returns all 10 requested rows,
+correctly matching "phone" as a token within multi-word product names
+("Cell Phone Plus 58", "Mobile Phone Pro 37", etc.) — genuine tokenized
+full-text matching, not a LIKE '%phone%' substring scan. Demonstrates
+Spanner's SQL surface extends past strict relational querying into
+full-text (and, per the schema, vector) search within the same engine.

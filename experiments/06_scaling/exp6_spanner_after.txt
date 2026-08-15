@@ -1,0 +1,49 @@
+# Experiment 6 — Spanner Omni AFTER scale-out (4th server added, non-root)
+# 2026-07-29T15:38:28Z
+
+## Helm upgrade attempt 1 (REJECTED): 4 root servers
+$ helm upgrade spanner-omni ... --set deployment.replicasPerZone=4 --set deployment.rootServersPerZone=4
+Error: UPGRADE FAILED: execution error at (spanner-omni/templates/validations.yaml:37:10):
+[FATAL] Zone 'local-a' in location 'local' has '4' root servers configured. The number of root servers must be an odd number between 1 and 9 (i.e. 1, 3, 5, 7, or 9)!
+
+## Helm upgrade attempt 2 (ACCEPTED): replicasPerZone=4, rootServersPerZone stays 3 (new server is non-root)
+$ helm upgrade spanner-omni ... --set deployment.replicasPerZone=4 --set deployment.rootServersPerZone=3 --reuse-values
+Release upgraded, REVISION 2. Existing pods spanner-a-0/1/2: unchanged AGE, 0 RESTARTS throughout — zero-downtime, zero-restart live scale-out confirmed.
+
+## Servers after
+NAME                                                    HOST                        PORT_BASE  ROOT   STATE 
+zones/local-a/servers/spanner-a-0.pod.spanner-ns:15000  spanner-a-0.pod.spanner-ns  15000      true   READY  
+zones/local-a/servers/spanner-a-1.pod.spanner-ns:15000  spanner-a-1.pod.spanner-ns  15000      true   READY  
+zones/local-a/servers/spanner-a-2.pod.spanner-ns:15000  spanner-a-2.pod.spanner-ns  15000      true   READY  
+zones/local-a/servers/spanner-a-3.pod.spanner-ns:15000  spanner-a-3.pod.spanner-ns  15000      false  READY  
+
+## spanner-a-3 startup log (note: root: false, and explicit joinServers list of the 3 existing root servers)
+15:36:15.912209 Successfully bound tcp listener to the server: spanner-a-3.pod.spanner-ns 
+15:36:15.912855 Writing to: /spanner
+15:36:15.912936 Starting the server in K8s environment with root: false and joinServers: [spanner-a-0.pod.spanner-ns spanner-a-1.pod.spanner-ns spanner-a-2.pod.spanner-ns]
+15:36:15.913334 Starting wait_for_box_universe
+15:36:16.378354 Starting server
+15:36:16.378372 Starting base_services
+
+## Groups after (compare to exp6_spanner_before.txt — UNCHANGED: still exactly 2 groups, same uids)
++-----------+-----------------+
+| group_uid | is_system_split |
++-----------+-----------------+
+|  55574529 | true            |
+|  51380225 | false           |
++-----------+-----------------+
+2 rows.
+
+## Leader of user-data group after (compare to before — UNCHANGED: still spanner-a-1)
+    generating_machine: "spanner-a-1"
+
+## Per-server disk footprint after (spanner-a-3 already shows 10G within ~2min of joining — baseline preallocated storage layout, NOT evidence of user data landing there, see interpretation notes)
+spanner-a-0: 10G	/spanner
+spanner-a-1: 10G	/spanner
+spanner-a-2: 10G	/spanner
+spanner-a-3: 10G	/spanner
+
+## Sanity check: does spanner-a-3 (non-root) itself answer a query against seminar-multiserver?
+[K(Unspecified) 
+50000          
+

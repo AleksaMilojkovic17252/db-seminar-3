@@ -1,0 +1,65 @@
+Spanner Omni — non-interleaved contrast (order_items_flat, plain FK to orders)
+
+Setup: created a twin table with the same columns/PK shape as order_items
+but a regular FOREIGN KEY to orders(id) instead of physical interleaving,
+then copied a bounded subset (id <= 2000, 4767 rows — Spanner's
+per-transaction mutation limit of 120,000 made copying the full 120,000-row
+order_items infeasible in one INSERT..SELECT: 120,000 rows x 5 columns =
+600,000 mutations, 5x over budget).
+
+DDL:
+  CREATE TABLE order_items_flat (
+    id INT64 NOT NULL, item_id INT64 NOT NULL, product_id INT64 NOT NULL,
+    quantity INT64 NOT NULL, unit_price NUMERIC NOT NULL,
+    CONSTRAINT fk_order_items_flat_order FOREIGN KEY (id) REFERENCES orders (id),
+    CONSTRAINT fk_order_items_flat_product FOREIGN KEY (product_id) REFERENCES products (id),
+  ) PRIMARY KEY (id, item_id);
+
+  INSERT INTO order_items_flat (...) SELECT ... FROM order_items WHERE id <= 2000;
+  -- Statement modified 4767 rows
+
+=== Same query as Query B, against the non-interleaved twin ===
+
+$ spanner databases execute-sql seminar --query-mode PROFILE \
+    --sql="SELECT o.id, o.total, oif.item_id, oif.quantity FROM orders o JOIN order_items_flat oif ON oif.id = o.id LIMIT 20"
+
+Query stats:
+  cpu_time: 5.94 msecs, elapsed_time: 16.69 msecs
+  data_bytes_read: 51489, rows_scanned: 1044, rows_returned: 20
+  remote_server_calls: 0/0
+
+Plan shape: Distributed Union driven from ORDERS this time
+(distribution_table: orders — the PARENT drives, opposite of the
+interleaved case), with a "Full scan": true TableScan reading 1024 order
+rows in one batch (Scan node, num_executions: 1, rows: 1024), then a
+nested Cross Apply/Filter Scan looks up matching order_items_flat rows by
+id (8 separate lookup executions, ~2.5 rows each, totaling the 20 needed).
+
+=== Comparison ===
+
+                        interleaved (order_items)   non-interleaved (order_items_flat)
+rows_scanned            40                          1044  (26x more)
+elapsed_time            8.35 ms                     16.69 ms  (~2x slower)
+driving table           order_items (child)         orders (parent, full batch scan)
+remote_server_calls     0/0                         0/0
+
+Interpretation: without the interleaving relationship to exploit, the
+optimizer flips which table drives the join and falls back to a generic
+batched-nested-loop strategy that has to pull a whole batch of parent rows
+(1024, "Full scan": true) rather than seeking directly via a co-located
+key. This is the contrast the runbook asks for — the same logical query,
+same data shape, same single-server deployment, but a materially
+different access pattern (26x more rows scanned, ~2x slower) purely as a
+function of whether the child table's storage is physically co-located
+with its parent.
+
+Caveat that must be stated honestly, not glossed over: because this Omni
+deployment is single-server (RF=1, per R1), remote_server_calls is 0/0 in
+BOTH plans — there is no second server for either query to hop to, so this
+experiment does NOT demonstrate "avoided a cross-server network hop" the
+way it would on a multi-server deployment. What it demonstrates instead is
+a real, single-server-observable difference in the optimizer's chosen
+access path and scan volume. The locality benefit interleaving provides is
+broader than just "fewer network hops" — it also changes which access
+path the optimizer considers cheapest, and that shows up even with only
+one server in the picture.
